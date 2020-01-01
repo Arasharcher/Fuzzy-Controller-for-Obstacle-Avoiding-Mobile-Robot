@@ -1,0 +1,331 @@
+//=======================================================
+// Use Arduino Mega 2560 or Arduino Due to Run This Code. 
+//=======================================================
+
+// ========================
+// Constants and Variables:
+// ========================
+const byte echl = 44 ;
+const byte trl  = 45 ;
+const byte echf = 48 ;
+const byte trf  = 49 ;
+const byte echr = 52 ;
+const byte trr  = 53 ;
+
+unsigned long elapsedtime , elapsedtimeB , elapsedtimeE ;
+
+float durl , durf , durr , distl , distf , distr ;
+int avl , avf , avr ;
+
+byte rule [2][27] ;
+long numrht , lftnum ;
+
+const byte enA = 2  ;  // Right Motor
+const byte in1 = 22 ;
+const byte in2 = 23 ;
+const byte in3 = 24 ;
+const byte in4 = 25 ;
+const byte enB = 3  ;  // Left Motor
+
+void setup() {
+
+  Serial.begin(9600);
+  // =================================
+  // Set PinModes as Input and Output:
+  // =================================
+  pinMode (echl , INPUT) ;
+  pinMode (echf , INPUT) ;
+  pinMode (echr , INPUT) ;
+  pinMode (trl , OUTPUT) ;
+  pinMode (trf , OUTPUT) ;
+  pinMode (trr , OUTPUT) ;
+
+  pinMode(enA , OUTPUT);
+  pinMode(enB , OUTPUT);
+  pinMode(in1 , OUTPUT);
+  pinMode(in2 , OUTPUT);
+  pinMode(in3 , OUTPUT);
+  pinMode(in4 , OUTPUT);
+
+}
+
+void loop() {
+
+  //===================
+  // Variables on SRAM:
+  //===================
+  int close_left , nfar_left , far_left , close_front , nfar_front , far_front , close_right , nfar_right , far_right , minmu , centr , centl , cur1 , cur2 ;
+  long derht , delft ;
+  byte lftm [27][51];
+  byte rhtm [27][51];
+
+  avl = 0 ;
+  durl = 0 ;
+  distl = 0 ;
+  avf = 0 ;
+  durf = 0 ;
+  distf = 0 ;
+  avr = 0 ;
+  durr = 0 ;
+  distr = 0 ;
+
+  //==================
+  // Measure Distance:          // UltaSonic Sensors Angle = 45 degree 
+  //==================
+
+  digitalWrite (trl , LOW) ;              
+  delayMicroseconds (5) ;
+  digitalWrite (trl , HIGH ) ;
+  delayMicroseconds(10) ;
+  digitalWrite(trl , LOW) ;
+  durl = pulseIn (echl , HIGH) ;
+
+  digitalWrite (trf , LOW) ;
+  delayMicroseconds (5) ;
+  digitalWrite (trf, HIGH ) ;
+  delayMicroseconds(10) ;
+  digitalWrite(trf , LOW) ;
+  durf = pulseIn (echf , HIGH) ;
+
+  digitalWrite (trr , LOW) ;
+  delayMicroseconds (5) ;
+  digitalWrite (trr , HIGH ) ;
+  delayMicroseconds(10) ;
+  digitalWrite(trr , LOW) ;
+  durr = pulseIn (echr , HIGH) ;
+
+  avl = durl * 0.034 / 2 ;
+  avf = durf * 0.034 / 2 ;
+  avr = durr * 0.034 / 2 ;
+
+  avl = scale (avl) ;
+  avf = scale (avf) ;
+  avr = scale (avr) ;
+
+  avl = avl / 4 ;
+  avf = avf / 4 ;
+  avr = avr / 4 ;
+
+
+  //=====================
+  // Membership Function:
+  //=====================
+
+  close_left = trapz (0 , 0 , 7 , 9 , avl ) ;
+  nfar_left = trapz (7 , 9 , 18 , 20 , avl ) ;
+  far_left = trapz (18 , 20 , 50 , 50 , avl ) ;
+
+  close_front = trapz (0 , 0 , 7 , 9 , avf ) ;
+  nfar_front = trapz (7 , 9 , 18 , 20 , avf ) ;
+  far_front = trapz (18 , 20 , 50 , 50 , avf ) ;
+
+  close_right = trapz (0 , 0 , 7 , 9 , avr ) ;
+  nfar_right = trapz (7 , 9 , 18 , 20 , avr ) ;
+  far_right = trapz (18 , 20 , 50 , 50 , avr ) ;
+
+  // ==========
+  // Rule Base:
+  // ==========
+
+  byte mu[3][27] = {
+    { close_left , close_left , close_left , close_left , close_left , close_left , close_left , close_left , close_left , nfar_left , nfar_left , nfar_left , nfar_left , nfar_left , nfar_left , nfar_left , nfar_left , nfar_left , far_left , far_left , far_left , far_left , far_left , far_left , far_left , far_left , far_left } ,
+    { close_front , close_front , close_front , nfar_front , nfar_front , nfar_front , far_front , far_front , far_front , close_front , close_front , close_front , nfar_front , nfar_front , nfar_front , far_front , far_front , far_front , close_front , close_front , close_front , nfar_front , nfar_front , nfar_front , far_front , far_front , far_front } ,
+    { close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right , close_right , nfar_right , far_right }
+  };
+
+  byte  rule [2][27] = {
+    {1 , 1 , 1 , 1 , 4 , 4 , 2 , 4 , 4 , 1 , 1 , 4 , 1 , 2 , 3 , 1 , 2 , 3 , 1 , 1 , 1 , 1 , 1 , 2 , 1 , 1 , 2 } , // Left_Motor Rule
+    {1 , 1 , 1 , 1 , 1 , 1 , 2 , 1 , 1 , 1 , 1 , 1 , 4 , 2 , 1 , 4 , 2 , 1 , 1 , 4 , 1 , 4 , 3 , 2 , 4 , 3 , 2 }   // Right_Motor Rule
+  };
+
+
+  for (byte i = 0 ; i <= 26 ; i++) {
+
+    minmu = func3min (mu[0][i] , mu[1][i] , mu[2][i]) ;
+
+    for (byte j = 0 ; j <= 50 ; j++ ) {
+      if ((rule[0][i]) == 1 ) {
+        cur1 = trapz(0 , 0 , 12 , 17 , j);        // Low
+
+
+      }
+      else if ((rule[0][i]) == 2) {
+        cur1 = trapz(12 , 17 , 32 , 37 , j);      // Med
+
+      }
+      else if ((rule[0][i]) == 3 ) {
+        cur1 = trapz(32 , 37 , 42 , 47 , j);      // High
+
+      }
+      else {
+        cur1 = trapz(42 , 47 , 50 , 50 , j);    // Vhigh
+      }
+
+      if ((rule[1][i]) == 1 ) {
+        cur2 = trapz(0 , 0 , 12 , 17 , j);        // Low
+
+      }
+      else if ((rule[1][i]) == 2) {
+        cur2 = trapz(12 , 17 , 32 , 37 , j);      // Med
+
+      }
+      else if ((rule[1][i]) == 3 ) {
+        cur2 = trapz(32 , 37 , 42, 47 , j);      // High
+
+      }
+      else {
+        cur2 = trapz(42 , 47 , 50 , 50 , j);    // Vhigh
+      }
+
+      lftm[i][j] = min (minmu , cur1) ;
+      rhtm[i][j] = min (minmu , cur2) ;
+
+      lftm[0][j] = max ( lftm[0][j] , lftm[i][j]) ;
+      rhtm[0][j] = max ( rhtm[0][j] , rhtm[i][j]) ;
+
+    }
+
+  }
+
+  delft = 0 ;
+  derht = 0 ;
+  lftnum = 0 ;
+  numrht = 0 ;
+  centl = 0 ;
+  centr = 0 ;
+
+  for ( byte h = 0 ; h <= 26 ; h++) {
+
+    for ( byte k = 0 ; k <= 50 ; k++) {
+
+      delft = delft + (lftm[h][k]) ;
+      derht = derht + (rhtm[h][k]) ;
+
+      lftnum = lftnum + abs((lftm[h][k]) * (k + 1)) ;
+      numrht = numrht + abs((rhtm[h][k]) * (k + 1)) ;
+
+    }
+  }
+
+  centr = numrht / derht ;
+  centl = lftnum / delft ;
+
+  if (( centl < 10 ) && ( centr < 10 )) {
+
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    digitalWrite(in3, LOW);
+    digitalWrite(in4, LOW);
+    delay (50) ;
+
+    if (avl < avr ) {
+
+      digitalWrite(in1, LOW);
+      digitalWrite(in2, HIGH);
+      digitalWrite(in3, HIGH);
+      digitalWrite(in4, LOW);
+
+      analogWrite(enA, 90);
+      analogWrite(enB, 80);
+
+      delay (50) ;
+    } else {
+
+      digitalWrite(in1, HIGH);
+      digitalWrite(in2, LOW);
+      digitalWrite(in3, LOW);
+      digitalWrite(in4, HIGH);
+
+      analogWrite(enA, 90);
+      analogWrite(enB, 80);
+
+      delay (50) ;
+
+    }
+
+  } else {
+
+    digitalWrite(in1, LOW) ;
+    digitalWrite(in2, HIGH) ;
+    digitalWrite(in3, LOW) ;
+    digitalWrite(in4, HIGH) ;
+  }
+
+  if (centr == centl) {
+
+    centl = 25 + centl + 5 ;
+    centr = 25 + centr ;
+
+  } else {
+
+    centl = 25 + centl ;
+    centr = 25 + centr ;
+
+  }
+
+  analogWrite(enA , centl);
+  analogWrite(enB , centr);
+
+}
+
+//======================
+// Trapezoidal Function:
+//======================
+
+float trapz(float a , float b , float c , float d, float x) {
+
+  float result;
+
+  if ((x >= b ) && ( x < c )) {
+    result = 250 ;
+  }
+  else if ((x >= a) && (x < b)) {
+    result = ((x - a) / (b - a)) * 250  ;
+  }
+  else if ((x >= c) && (x < d)) {
+    result = ((d - x) / (d - c)) * 250  ;
+  }
+  else {
+    result = 0 ;
+  }
+  return result ;
+}
+
+//==================
+// Minimum Function:
+//==================
+
+float func3min (float a , float b , float c) {
+
+  float result ;
+
+  if ((a <= b) && (a <= c)) {
+    result = a ;
+  }
+  else if ((b <= a) && (b <= c)) {
+    result = b ;
+  }
+  else {
+    result = c ;
+  }
+  return result ;
+}
+
+//================
+// Scale Function:
+//================
+
+int scale (int u) {
+  int result ;
+
+  if (u > 196) {
+    result = 196 ;
+  }
+  else if ( u < 5) {
+    result = 5 ;
+  }
+  else {
+    result = u ;
+  }
+  return result ;
+}
